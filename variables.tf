@@ -18,4 +18,7 @@ variable "operators" {
   default = []
 }
 
-
+variable "allowed_workspace" {
+  description = "The allowed Terraform workspace name to create the backend resources"
+  default = "default"
+}

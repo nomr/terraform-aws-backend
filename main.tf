@@ -1,7 +1,16 @@
 #
+# Local variables
+#
+locals {
+  enabled = "${var.allowed_workspace == terraform.workspace ? 1 : 0}"
+}
+
+#
 # KMS Key
 #
 resource "aws_kms_key" "tf_enc_key" {
+  count = "${local.enabled}"
+
   description             = "Global Terraform state encryption key"
   deletion_window_in_days = 30
 
@@ -14,6 +23,8 @@ resource "aws_kms_key" "tf_enc_key" {
 # S3 Bucket
 #
 resource "aws_s3_bucket" "tf_state" {
+  count = "${local.enabled}"
+
   bucket = "${var.bucket}"
   acl    = "private"
 
@@ -48,12 +59,14 @@ resource "aws_s3_bucket" "tf_state" {
 # S3 Bucket Policy
 #
 data "aws_iam_user" "tf_operators" {
-  count = "${length(var.operators)}"
+  count = "${local.enabled*length(var.operators)}"
 
   user_name = "${var.operators[count.index]}"
 }
 
 data "aws_iam_policy_document" "tf_state_policy" {
+  count = "${local.enabled}"
+
   statement {
     effect  = "Allow"
     actions = ["s3:ListBucket"]
@@ -90,6 +103,8 @@ data "aws_iam_policy_document" "tf_state_policy" {
 }
 
 resource "aws_s3_bucket_policy" "tf_state_policy" {
+  count = "${local.enabled}"
+
   bucket = "${aws_s3_bucket.tf_state.id}"
   policy = "${data.aws_iam_policy_document.tf_state_policy.json}"
 }
@@ -98,6 +113,8 @@ resource "aws_s3_bucket_policy" "tf_state_policy" {
 # DynamoDB
 #
 resource "aws_dynamodb_table" "tf_state_lock" {
+  count = "${local.enabled}"
+
   name           = "${var.dynamodb_table}"
   read_capacity  = 1
   write_capacity = 1
