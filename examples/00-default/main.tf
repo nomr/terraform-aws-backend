@@ -9,7 +9,7 @@ resource "random_id" "bucket_name" {
   byte_length = 8
 }
 module "backend" {
-  source = "../"
+  source = "../.."
 
   bucket    = "${random_id.bucket_name.hex}-tfstate"
   operators = ["${var.operator}"]
