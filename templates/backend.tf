@@ -1,8 +1,9 @@
 terraform {
   backend "s3" {
-    region = "${region}"
-    bucket = "${bucket}"
-    key    = "${key}"
+    role_arn       = "${role_arn}"
+    region         = "${region}"
+    bucket         = "${bucket}"
+    key            = "${key}"
     dynamodb_table = "${dynamodb_table}"
   }
 }

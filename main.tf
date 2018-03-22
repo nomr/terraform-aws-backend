@@ -10,6 +10,63 @@ provider "local" { version = "~> 1.1" }
 #
 locals {
   enabled = "${var.allowed_workspace == terraform.workspace ? 1 : 0}"
+  enabled_b = "${var.allowed_workspace == terraform.workspace ? true : false}"
+}
+
+#
+# Terraform Role
+#
+data "aws_iam_user" "tf_operators" {
+  count = "${local.enabled*length(var.operators)}"
+
+  user_name = "${var.operators[count.index]}"
+}
+
+data "aws_iam_policy_document" "tf_assume_role" {
+  count = "${local.enabled_b && var.create_role ? 1 : 0}"
+
+  statement {
+    actions = [ "sts:AssumeRole" ]
+
+    principals {
+      type        = "AWS"
+      identifiers = [ "${data.aws_iam_user.tf_operators.arn}" ]
+    }
+  }
+
+  statement {
+    actions = [ "sts:AssumeRole" ]
+
+    principals {
+      type        = "Service"
+      identifiers = [ "${var.services}" ]
+    }
+  }
+}
+
+resource "aws_iam_role" "tf_role" {
+  count = "${local.enabled_b && var.create_role ? 1 : 0}"
+
+  name        = "${var.role}"
+  description = "The Terraform role. Used for controlling the infrastructure"
+
+  assume_role_policy = "${data.aws_iam_policy_document.tf_assume_role.json}"
+}
+
+data "aws_iam_role" "tf_role" {
+  count = "${local.enabled}"
+
+  name = "${var.role}"
+}
+
+#
+# Terraform Role Policies
+#
+resource "aws_iam_role_policy_attachment" "tf_role_policy" {
+  count = "${local.enabled*length(var.role_policies)}"
+
+  role       = "${var.role}"
+  policy_arn = "${var.role_policies[count.index]}"
 }
 
 #
@@ -65,12 +122,6 @@ resource "aws_s3_bucket" "tf_state" {
 #
 # S3 Bucket Policy
 #
-data "aws_iam_user" "tf_operators" {
-  count = "${local.enabled*length(var.operators)}"
-
-  user_name = "${var.operators[count.index]}"
-}
-
 data "aws_iam_policy_document" "tf_state_policy" {
   count = "${local.enabled}"
 
@@ -86,7 +137,7 @@ data "aws_iam_policy_document" "tf_state_policy" {
       type = "AWS"
 
       identifiers = [
-        "${data.aws_iam_user.tf_operators.arn}",
+        "${data.aws_iam_role.tf_role.arn}",
       ]
     }
   }
@@ -103,7 +154,7 @@ data "aws_iam_policy_document" "tf_state_policy" {
     principals {
       type        = "AWS"
       identifiers = [
-        "${data.aws_iam_user.tf_operators.arn}"
+        "${data.aws_iam_role.tf_role.arn}"
       ]
     }
   }
@@ -147,6 +198,7 @@ data "template_file" "backend_tf" {
 
   vars = {
     region         = "${var.region}"
+    role_arn       = "${data.aws_iam_role.tf_role.arn}"
     bucket         = "${aws_s3_bucket.tf_state.id}"
     key            = "${var.key}"
     dynamodb_table = "${aws_dynamodb_table.tf_state_lock.id}"
