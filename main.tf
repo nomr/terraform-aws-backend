@@ -1,4 +1,11 @@
 #
+# Providers
+#
+provider "template" { version = "~> 1.0" }
+provider "null" { version = "~> 1.0" }
+provider "local" { version = "~> 1.1" }
+
+#
 # Local variables
 #
 locals {
@@ -115,7 +122,7 @@ resource "aws_s3_bucket_policy" "tf_state_policy" {
 resource "aws_dynamodb_table" "tf_state_lock" {
   count = "${local.enabled}"
 
-  name           = "${var.dynamodb_table}"
+  name           = "${var.bucket}-${var.dynamodb_table_suffix}"
   read_capacity  = 1
   write_capacity = 1
   hash_key       = "LockID"
@@ -128,4 +135,26 @@ resource "aws_dynamodb_table" "tf_state_lock" {
   tags {
     terraform = "true"
   }
+}
+
+#
+# backend.tf file
+#
+data "template_file" "backend_tf" {
+  count = "${local.enabled}"
+
+  template = "${file("${path.module}/templates/backend.tf")}"
+
+  vars = {
+    region         = "${var.region}"
+    bucket         = "${aws_s3_bucket.tf_state.id}"
+    key            = "${var.key}"
+    dynamodb_table = "${aws_dynamodb_table.tf_state_lock.id}"
+  }
+}
+resource "local_file" "backend_tf" {
+  count = "${local.enabled}"
+
+  content  = "${data.template_file.backend_tf.rendered}"
+  filename = "backend.tf"
 }

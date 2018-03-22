@@ -1,3 +1,8 @@
+variable "region" {
+  description = "The region of the S3 bucket and DynamoDB lock table"
+  default = "us-east-1"
+}
+
 variable "bucket" {
   description = "The Terraform state bucket"
 }
@@ -7,9 +12,9 @@ variable "key" {
   default     = "terraform.tfstate"
 }
 
-variable "dynamodb_table" {
-  default     = "terraform-state-lock"
-  description = "The Terraform state lock table"
+variable "dynamodb_table_suffix" {
+  default     = "lock"
+  description = "The Terraform state lock table suffix"
 }
 
 variable "operators" {
