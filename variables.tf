@@ -7,14 +7,14 @@ variable "bucket" {
   description = "The Terraform state bucket"
 }
 
-variable "key" {
-  description = "The Terraform state filename"
-  default     = "terraform.tfstate"
-}
-
 variable "dynamodb_table_suffix" {
   default     = "lock"
   description = "The Terraform state lock table suffix"
+}
+
+variable "stacks" {
+  description = "The Terraform stack names."
+  default     = [ ]
 }
 
 variable "allowed_workspace" {

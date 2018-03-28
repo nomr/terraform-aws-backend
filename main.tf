@@ -11,6 +11,8 @@ provider "local" { version = "~> 1.1" }
 locals {
   enabled = "${var.allowed_workspace == terraform.workspace ? 1 : 0}"
   enabled_b = "${var.allowed_workspace == terraform.workspace ? true : false}"
+
+  stacks = [ "backend", "${var.stacks}" ]
 }
 
 #
@@ -122,6 +124,24 @@ resource "aws_s3_bucket" "tf_state" {
 #
 # S3 Bucket Policy
 #
+data "template_file" "tf_state_fq_key" {
+  count = "${local.enabled*length(local.stacks)}"
+
+  template = "${aws_s3_bucket.tf_state.arn}/$${key}!"
+  vars {
+    key = "${local.stacks[count.index]}.tfstate"
+  }
+}
+
+data "template_file" "tf_state_fq_env_key" {
+  count = "${local.enabled*length(local.stacks)}"
+
+  template = "${aws_s3_bucket.tf_state.arn}/env:/$${key}!"
+  vars {
+    key = "${local.stacks[count.index]}.tfstate"
+  }
+}
+
 data "aws_iam_policy_document" "tf_state_policy" {
   count = "${local.enabled}"
 
@@ -147,8 +167,8 @@ data "aws_iam_policy_document" "tf_state_policy" {
     actions = ["s3:GetObject", "s3:PutObject"]
 
     resources = [
-      "${aws_s3_bucket.tf_state.arn}/${var.key}",
-      "${aws_s3_bucket.tf_state.arn}/env:/${var.key}",
+      "${data.template_file.tf_state_fq_key.*.rendered}",
+      "${data.template_file.tf_state_fq_key.*.rendered}"
     ]
 
     principals {
@@ -192,7 +212,7 @@ resource "aws_dynamodb_table" "tf_state_lock" {
 # backend.tf file
 #
 data "template_file" "backend_tf" {
-  count = "${local.enabled}"
+  count = "${local.enabled*length(local.stacks)}"
 
   template = "${file("${path.module}/templates/backend.tf")}"
 
@@ -200,13 +220,13 @@ data "template_file" "backend_tf" {
     region         = "${var.region}"
     role_arn       = "${data.aws_iam_role.tf_role.arn}"
     bucket         = "${aws_s3_bucket.tf_state.id}"
-    key            = "${var.key}"
+    key            = "${local.stacks[count.index]}.tfstate"
     dynamodb_table = "${aws_dynamodb_table.tf_state_lock.id}"
   }
 }
 resource "local_file" "backend_tf" {
   count = "${local.enabled}"
 
-  content  = "${data.template_file.backend_tf.rendered}"
+  content  = "${data.template_file.backend_tf.*.rendered[0]}"
   filename = "backend.tf"
 }
